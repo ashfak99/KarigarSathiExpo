@@ -20,8 +20,8 @@ export default function RootLayout() {
         <Stack.Screen name="form/personal" options={{ title: 'Personal Details' }} />
         <Stack.Screen name="form/professional" options={{ title: 'Professional Details' }} />
         <Stack.Screen name="preview" options={{ title: 'Preview Resume' }} />
-        {/* <Stack.Screen name="payment" options={{ title: 'Payment' }} /> */}
         <Stack.Screen name="download" options={{ title: 'Download' }} />
+        <Stack.Screen name="payment" options={{ title: 'Payment' }} />
       </Stack>
     </>
   );

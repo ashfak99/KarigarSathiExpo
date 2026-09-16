@@ -7,12 +7,11 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { getLanguage, getDraft, isPaid } from '../src/utils/storage';
+import { getLanguage, getDraft } from '../src/utils/storage';
 import { ResumeData, DEFAULT_COLOR } from '../src/utils/resumeHtml';
 import {
   generateResumePdf,
@@ -52,7 +51,8 @@ export default function DownloadScreen() {
           return;
         }
 
-        const paid = await isPaid();
+        // ✅ Draft ke andar ka paid status check karo
+        const paid = draft.paid === true;
         setAlreadyPaid(paid);
         setResumeData(draft);
 
@@ -111,6 +111,11 @@ export default function DownloadScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  /* ===== Pay Now ===== */
+  const handlePay = () => {
+    router.push('/payment');
   };
 
   /* ===== Go Home ===== */
@@ -201,6 +206,31 @@ export default function DownloadScreen() {
             </Text>
           </View>
         </View>
+      )}
+
+      {/* Payment Banner (if NOT paid) */}
+      {!alreadyPaid && (
+        <TouchableOpacity
+          style={styles.payBanner}
+          onPress={handlePay}
+          activeOpacity={0.85}
+        >
+          <View style={styles.payBannerIcon}>
+            <Ionicons name="lock-open" size={26} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.payBannerTitle}>
+              {label('Remove Watermark', 'वॉटरमार्क हटाएं')}
+            </Text>
+            <Text style={styles.payBannerSub}>
+              {label(
+                'Pay ₹20 and get clean PDF instantly',
+                '₹20 देकर साफ PDF पाएं'
+              )}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color="#fff" />
+        </TouchableOpacity>
       )}
 
       {/* Action Buttons */}
@@ -330,7 +360,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 14,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 16,
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.06,
@@ -380,6 +410,40 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#2E7D32',
+  },
+
+  /* ===== Payment Banner ===== */
+  payBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#E65100',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 16,
+    elevation: 4,
+    shadowColor: '#E65100',
+    shadowOpacity: 0.35,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+  },
+  payBannerIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  payBannerTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  payBannerSub: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
   },
 
   /* ===== Buttons ===== */

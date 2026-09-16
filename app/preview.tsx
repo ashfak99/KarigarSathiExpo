@@ -11,7 +11,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getLanguage, getDraft, isPaid } from '../src/utils/storage';
+import { getLanguage, getDraft } from '../src/utils/storage';
 import {
   generateResumeHtml,
   ResumeData,
@@ -54,7 +54,8 @@ export default function PreviewScreen() {
         return;
       }
 
-      const paid = true;
+      // ✅ Draft ke andar ka paid status check karo
+      const paid = draft.paid === true;
       setAlreadyPaid(paid);
       setResumeData(draft);
 

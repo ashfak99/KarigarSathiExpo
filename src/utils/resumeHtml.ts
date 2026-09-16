@@ -46,6 +46,9 @@ export interface ResumeData {
   customLanguages?: string[];
 
   aboutMe?: string;
+
+  // ✅ NAYA FIELD — har resume ka apna paid status
+  paid?: boolean;
 }
 
 export interface ResumeColor {
@@ -133,19 +136,19 @@ const calculateContentScore = (data: ResumeData): number => {
 };
 
 /**
- * Naya scale — zyada generous (content zyada hone par bhi readable)
+ * Naya scale — bada aur readable
  */
 const getScale = (score: number): number => {
-  if (score <= 3)  return 1.2;
-  if (score <= 6)  return 1.15;
-  if (score <= 10) return 1.08;
-  if (score <= 14) return 1.02;
-  if (score <= 18) return 0.98;
-  if (score <= 22) return 0.94;
-  if (score <= 27) return 0.9;
-  if (score <= 33) return 0.86;
-  if (score <= 40) return 0.82;
-  return 0.78;
+  if (score <= 3)  return 1.3;
+  if (score <= 6)  return 1.25;
+  if (score <= 10) return 1.18;
+  if (score <= 14) return 1.12;
+  if (score <= 18) return 1.06;
+  if (score <= 22) return 1.0;
+  if (score <= 27) return 0.96;
+  if (score <= 33) return 0.92;
+  if (score <= 40) return 0.88;
+  return 0.84;
 };
 
 /* ============================================================
@@ -357,7 +360,7 @@ export const generateResumeHtml = (
       font-family: 'Times New Roman', 'Georgia', serif;
       background: #fff;
       color: #000;
-      font-size: ${px(12)};
+      font-size: ${px(13)};
       line-height: 1.4;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
