@@ -1,0 +1,124 @@
+{
+  "categories": [
+    {
+      "id": "electrical",
+      "en": "Electrical",
+      "hi": "इलेक्ट्रिकल",
+      "icon": "flash",
+      "subcategories": [
+        {
+          "id": "electrician",
+          "en": "Electrician",
+          "hi": "इलेक्ट्रीशियन",
+          "icon": "flash-outline"
+        },
+        {
+          "id": "ac_technician",
+          "en": "AC & Refrigeration Technician",
+          "hi": "AC और रेफ्रिजरेशन टेक्नीशियन",
+          "icon": "snow-outline"
+        }
+      ]
+    },
+    {
+      "id": "plumbing",
+      "en": "Plumbing",
+      "hi": "प्लंबिंग",
+      "icon": "water",
+      "subcategories": [
+        {
+          "id": "plumber",
+          "en": "Plumber",
+          "hi": "प्लंबर",
+          "icon": "water-outline"
+        },
+        {
+          "id": "pipe_fitter",
+          "en": "Pipe Fitter",
+          "hi": "पाइप फिटर",
+          "icon": "git-network-outline"
+        }
+      ]
+    },
+    {
+      "id": "mechanical",
+      "en": "Mechanical",
+      "hi": "मैकेनिकल",
+      "icon": "construct",
+      "subcategories": [
+        {
+          "id": "welder",
+          "en": "Welder",
+          "hi": "वेल्डर",
+          "icon": "flame-outline"
+        }
+      ]
+    },
+    {
+      "id": "automobile",
+      "en": "Automobile",
+      "hi": "ऑटोमोबाइल",
+      "icon": "car",
+      "subcategories": [
+        {
+          "id": "auto_mechanic",
+          "en": "Auto Mechanic",
+          "hi": "ऑटो मैकेनिक",
+          "icon": "car-outline"
+        }
+      ]
+    },
+    {
+      "id": "construction",
+      "en": "Construction",
+      "hi": "कंस्ट्रक्शन",
+      "icon": "hammer",
+      "subcategories": [
+        {
+          "id": "mason",
+          "en": "Mason",
+          "hi": "राजमिस्त्री",
+          "icon": "business-outline"
+        },
+        {
+          "id": "carpenter",
+          "en": "Carpenter",
+          "hi": "सुथार",
+          "icon": "hammer-outline"
+        },
+        {
+          "id": "painter",
+          "en": "Painter",
+          "hi": "पेंटर",
+          "icon": "color-palette-outline"
+        },
+        {
+          "id": "helper",
+          "en": "Helper",
+          "hi": "हेल्पर",
+          "icon": "people-outline"
+        }
+      ]
+    },
+    {
+      "id": "services",
+      "en": "Services",
+      "hi": "सेवाएं",
+      "icon": "restaurant",
+      "subcategories": [
+        {
+          "id": "cook",
+          "en": "Cook",
+          "hi": "रसोइया",
+          "icon": "restaurant-outline"
+        },
+        {
+          "id": "driver",
+          "en": "Driver",
+          "hi": "ड्राइवर",
+          "icon": "car-sport-outline"
+        }
+      ]
+    }
+  ]
+}
