@@ -49,6 +49,7 @@ export interface ResumeData {
 
   // ✅ NAYA FIELD — har resume ka apna paid status
   paid?: boolean;
+  resumeId?:string;
 }
 
 export interface ResumeColor {

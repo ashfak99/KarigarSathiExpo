@@ -13,90 +13,163 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { getLanguage, getDraft, saveDraft } from '../src/utils/storage';
 import { ResumeData } from '../src/utils/resumeHtml';
+import {
+  payForResume,
+  recoverPendingPayment,
+  warmUpServer,
+} from '../src/utils/razorpay';
 
 const RESUME_PRICE = 20; // ₹20
+
+/* =========================================================
+   Generate unique resumeId (ek baar per resume)
+========================================================= */
+const generateResumeId = (): string => {
+  return `res_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+};
 
 export default function PaymentScreen() {
   const { t } = useTranslation();
   const [userLang, setUserLang] = useState<'en' | 'hi'>('hi');
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
+  const [resumeId, setResumeId] = useState<string>('');
   const [processing, setProcessing] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState<string>('upi');
+  const [checkingPending, setCheckingPending] = useState(true);
 
   const label = useCallback(
     (en: string, hi: string) => (userLang === 'hi' ? `${en} (${hi})` : en),
     [userLang]
   );
 
+  /* =========================================================
+     INIT — Load data + warmup + recover pending
+  ========================================================= */
   useEffect(() => {
     const init = async () => {
-      const lang = (await getLanguage()) as 'en' | 'hi';
-      setUserLang(lang);
+      try {
+        const lang = (await getLanguage()) as 'en' | 'hi';
+        setUserLang(lang);
 
-      const draft = (await getDraft()) as ResumeData | null;
-      if (!draft || !draft.name) {
-        Alert.alert(
-          label('Error', 'त्रुटि'),
-          label('No resume data found', 'कोई डेटा नहीं मिला')
-        );
-        router.replace('/category');
-        return;
+        const draft = (await getDraft()) as ResumeData | null;
+        if (!draft || !draft.name) {
+          Alert.alert(
+            label('Error', 'त्रुटि'),
+            label('No resume data found', 'कोई डेटा नहीं मिला')
+          );
+          router.replace('/category');
+          return;
+        }
+
+        // ✅ Get or create resumeId
+        let rid = (draft as any).resumeId as string | undefined;
+        if (!rid) {
+          rid = generateResumeId();
+          const updated = { ...draft, resumeId: rid };
+          await saveDraft(updated);
+          setResumeData(updated);
+        } else {
+          setResumeData(draft);
+        }
+        setResumeId(rid);
+
+        // ✅ Wake up server (Render cold start)
+        warmUpServer();
+
+        // ✅ Check if a previous payment was pending
+        const recovered = await recoverPendingPayment(rid);
+        if (recovered) {
+          const updated = { ...draft, resumeId: rid, paid: true };
+          await saveDraft(updated);
+          Alert.alert(
+            label('✅ Payment Recovered!', '✅ पेमेंट मिल गई!'),
+            label(
+              'Your previous payment was successful. Watermark removed.',
+              'आपकी पिछली पेमेंट सफल थी। वॉटरमार्क हटा दिया गया।'
+            ),
+            [
+              {
+                text: label('View Resume', 'रिज्यूमे देखें'),
+                onPress: () => router.replace('/download'),
+              },
+            ]
+          );
+        }
+      } catch (e) {
+        console.error('Init error:', e);
+      } finally {
+        setCheckingPending(false);
       }
-      setResumeData(draft);
     };
     init();
   }, []);
 
   /* =========================================================
-     DUMMY PAYMENT — Later replace with Razorpay
+     PAYMENT HANDLER
   ========================================================= */
   const handlePayment = async () => {
-    if (!resumeData) return;
+    if (!resumeData || !resumeId) return;
 
     try {
       setProcessing(true);
 
-      /* ========================================================
-         🔜 YAHAN RAZORPAY AAYEGA (Dev Build ke baad):
+      const result = await payForResume(resumeId);
 
-         const options = {
-           description: 'Karigar Sathi Resume',
-           currency: 'INR',
-           key: 'rzp_test_XXXXXXXXXXXX',
-           amount: RESUME_PRICE * 100,
-           name: 'Karigar Sathi',
-           order_id: '',
-           prefill: {
-             name: resumeData.name,
-             contact: resumeData.mobile,
-             email: resumeData.email || '',
-           },
-           theme: { color: '#1E88E5' },
-         };
+      /* ===== PAID ===== */
+      if (result.status === 'paid') {
+        const updated: ResumeData = { ...resumeData, paid: true };
+        await saveDraft(updated);
 
-         const data = await RazorpayCheckout.open(options);
-         // success: data.razorpay_payment_id
-      ======================================================== */
+        Alert.alert(
+          label('✅ Payment Successful!', '✅ पेमेंट सफल!'),
+          label(
+            `You paid ₹${RESUME_PRICE}. Watermark will be removed.`,
+            `आपने ₹${RESUME_PRICE} का भुगतान किया। वॉटरमार्क हटा दिया जाएगा।`
+          ),
+          [
+            {
+              text: label('View Resume', 'रिज्यूमे देखें'),
+              onPress: () => router.replace('/download'),
+            },
+          ]
+        );
+        return;
+      }
 
-      // ⏳ DUMMY: 2 second delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      /* ===== CANCELLED ===== */
+      if (result.status === 'cancelled') {
+        Alert.alert(
+          label('Payment Cancelled', 'पेमेंट रद्द'),
+          label(
+            'You closed the payment window. You can try again.',
+            'आपने पेमेंट विंडो बंद कर दी। दोबारा कोशिश करें।'
+          )
+        );
+        return;
+      }
 
-      // ✅ Draft ke andar paid: true save karo
-      const updatedResume: ResumeData = { ...resumeData, paid: true };
-      await saveDraft(updatedResume);
+      /* ===== PENDING ===== */
+      if (result.status === 'pending') {
+        Alert.alert(
+          label('⏳ Payment Pending', '⏳ पेमेंट पेंडिंग'),
+          label(
+            'We could not confirm your payment. If money was deducted, it will be auto-recovered within a minute. Please wait or reopen this screen.',
+            'हम पेमेंट कन्फर्म नहीं कर पाए। अगर पैसे कट गए हैं, तो 1 मिनट में ऑटो-रिकवर हो जाएगा। कृपया प्रतीक्षा करें या यह स्क्रीन दोबारा खोलें।'
+          ),
+          [
+            {
+              text: label('Check Again', 'दोबारा चेक करें'),
+              onPress: () => router.replace('/download'),
+            },
+          ]
+        );
+        return;
+      }
 
+      /* ===== ERROR ===== */
       Alert.alert(
-        label('✅ Payment Successful!', '✅ पेमेंट सफल!'),
-        label(
-          `You paid ₹${RESUME_PRICE}. Watermark will be removed.`,
-          `आपने ₹${RESUME_PRICE} का भुगतान किया। वॉटरमार्क हटा दिया जाएगा।`
-        ),
-        [
-          {
-            text: label('View Resume', 'रिज्यूमे देखें'),
-            onPress: () => router.replace('/download'),
-          },
-        ]
+        label('Payment Failed', 'पेमेंट विफल'),
+        result.message ||
+          label('Something went wrong.', 'कुछ गलत हो गया।')
       );
     } catch (error: any) {
       console.error('❌ Payment error:', error);
@@ -117,37 +190,17 @@ export default function PaymentScreen() {
     router.back();
   };
 
-  /* ===== Payment Methods Data ===== */
-  const methods = [
-    {
-      id: 'upi',
-      icon: 'phone-portrait-outline' as const,
-      title: 'UPI',
-      subtitle: 'GPay, PhonePe, Paytm, BHIM',
-      recommended: true,
-    },
-    {
-      id: 'card',
-      icon: 'card-outline' as const,
-      title: 'Credit / Debit Card',
-      subtitle: 'Visa, Mastercard, RuPay',
-      recommended: false,
-    },
-    {
-      id: 'netbanking',
-      icon: 'business-outline' as const,
-      title: 'Net Banking',
-      subtitle: 'All major banks',
-      recommended: false,
-    },
-    {
-      id: 'wallet',
-      icon: 'wallet-outline' as const,
-      title: 'Wallet',
-      subtitle: 'Paytm, Amazon Pay, etc.',
-      recommended: false,
-    },
-  ];
+  /* ===== LOADING (checking pending) ===== */
+  if (checkingPending) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#1E88E5" />
+        <Text style={styles.loadingText}>
+          {label('Preparing payment...', 'पेमेंट तैयार कर रहे हैं...')}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -167,7 +220,7 @@ export default function PaymentScreen() {
         </Text>
       </View>
 
-      {/* Order Summary Card */}
+      {/* Order Summary */}
       <View style={styles.card}>
         <Text style={styles.cardHeader}>
           {label('ORDER SUMMARY', 'ऑर्डर सारांश')}
@@ -230,49 +283,32 @@ export default function PaymentScreen() {
         </View>
       </View>
 
-      {/* Payment Methods */}
+      {/* ===== Payment Method — UPI only ===== */}
       <Text style={styles.sectionTitle}>
-        {label('SELECT PAYMENT METHOD', 'पेमेंट तरीका चुनें')}
+        {label('PAYMENT METHOD', 'पेमेंट तरीका')}
       </Text>
 
-      {methods.map((method) => (
-        <TouchableOpacity
-          key={method.id}
-          style={[
-            styles.methodCard,
-            selectedMethod === method.id && styles.methodCardActive,
-          ]}
-          onPress={() => setSelectedMethod(method.id)}
-          activeOpacity={0.8}
-        >
-          <View
-            style={[
-              styles.radio,
-              selectedMethod === method.id && styles.radioActive,
-            ]}
-          >
-            {selectedMethod === method.id && <View style={styles.radioDot} />}
-          </View>
-          <View style={styles.methodIcon}>
-            <Ionicons name={method.icon} size={24} color="#1E88E5" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={styles.methodTitleRow}>
-              <Text style={styles.methodTitle}>{method.title}</Text>
-              {method.recommended && (
-                <View style={styles.recommendBadge}>
-                  <Text style={styles.recommendText}>
-                    {label('Fastest', 'सबसे तेज़')}
-                  </Text>
-                </View>
-              )}
+      <View style={styles.methodCard}>
+        <View style={styles.methodIcon}>
+          <Ionicons name="phone-portrait-outline" size={26} color="#1E88E5" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={styles.methodTitleRow}>
+            <Text style={styles.methodTitle}>UPI</Text>
+            <View style={styles.recommendBadge}>
+              <Text style={styles.recommendText}>
+                {label('Recommended', 'अनुशंसित')}
+              </Text>
             </View>
-            <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
           </View>
-        </TouchableOpacity>
-      ))}
+          <Text style={styles.methodSubtitle}>
+            GPay, PhonePe, Paytm, BHIM, UPI Apps
+          </Text>
+        </View>
+        <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+      </View>
 
-      {/* Pay Button */}
+      {/* ===== Pay Button ===== */}
       <TouchableOpacity
         style={[styles.payBtn, processing && styles.payBtnDisabled]}
         onPress={handlePayment}
@@ -331,6 +367,19 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     backgroundColor: '#F5F5F5',
     minHeight: '100%',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: '#666',
+    fontWeight: '500',
   },
 
   /* ===== Banner ===== */
@@ -395,10 +444,7 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
   },
-  rowLabel: {
-    fontSize: 14,
-    color: '#555',
-  },
+  rowLabel: { fontSize: 14, color: '#555' },
   rowValue: {
     fontSize: 14,
     fontWeight: '600',
@@ -412,16 +458,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#222',
-  },
-  totalValue: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#E65100',
-  },
+  totalLabel: { fontSize: 16, fontWeight: '700', color: '#222' },
+  totalValue: { fontSize: 22, fontWeight: 'bold', color: '#E65100' },
 
   /* ===== Benefits ===== */
   benefitsBox: {
@@ -452,7 +490,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  /* ===== Payment Methods ===== */
+  /* ===== Payment Method ===== */
   methodCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -462,34 +500,12 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#1E88E5',
     elevation: 1,
   },
-  methodCardActive: {
-    borderColor: '#1E88E5',
-    backgroundColor: '#F0F8FF',
-  },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#BBB',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioActive: {
-    borderColor: '#1E88E5',
-  },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#1E88E5',
-  },
   methodIcon: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 10,
     backgroundColor: '#E3F2FD',
     justifyContent: 'center',
@@ -501,8 +517,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   methodTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#222',
   },
   methodSubtitle: {
@@ -538,9 +554,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
   },
-  payBtnDisabled: {
-    backgroundColor: '#A5D6A7',
-  },
+  payBtnDisabled: { backgroundColor: '#A5D6A7' },
   payBtnText: {
     color: '#fff',
     fontSize: 17,
